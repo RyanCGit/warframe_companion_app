@@ -27,14 +27,18 @@ class WarframeMarketAPI {
         if (this.isElectron) {
             // Direct fetch for Electron
             try {
-                const response = await fetch(url, {
+                const fetchOptions = {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
                         'User-Agent': 'Warframe Market Tracker/1.0.0'
-                    },
-                    signal: signal
-                });
+                    }
+                };
+                if (signal) {
+                    fetchOptions.signal = signal;
+                }
+                
+                const response = await fetch(url, fetchOptions);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -70,13 +74,17 @@ class WarframeMarketAPI {
             console.log(`Trying proxy ${i + 1}/${this.corsProxies.length}:`, proxy);
 
             try {
-                const response = await fetch(proxyUrl, {
+                const fetchOptions = {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json'
-                    },
-                    signal: signal
-                });
+                    }
+                };
+                if (signal) {
+                    fetchOptions.signal = signal;
+                }
+                
+                const response = await fetch(proxyUrl, fetchOptions);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -414,7 +422,13 @@ class WarframeMarketApp {
             console.log('Starting search for:', query);
             this.showLoading();
             
-            const items = await this.api.searchItems(query);
+            // Add timeout to prevent hanging
+            const searchPromise = this.api.searchItems(query);
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Search timeout - please try again')), 15000)
+            );
+            
+            const items = await Promise.race([searchPromise, timeoutPromise]);
             console.log('Search results:', items);
             
             if (items.length === 0) {
