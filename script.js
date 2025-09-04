@@ -4,11 +4,34 @@ class WarframeMarketAPI {
     constructor() {
         // Use CORS proxy for web browsers, direct API for Electron
         this.isElectron = window.electronAPI !== undefined;
+        this.corsProxies = [
+            'https://api.allorigins.win/get?url=',
+            'https://corsproxy.io/?',
+            'https://api.codetabs.com/v1/proxy?quest='
+        ];
+        this.currentProxyIndex = 0;
         this.baseURL = this.isElectron 
             ? 'https://api.warframe.market/v1'
-            : 'https://corsproxy.io/?https://api.warframe.market/v1';
+            : this.getProxiedURL('https://api.warframe.market/v1');
         this.cache = new Map();
         this.cacheTimeout = 300000; // 5 minutes
+    }
+
+    getProxiedURL(url) {
+        if (this.isElectron) {
+            return url;
+        }
+        const proxy = this.corsProxies[this.currentProxyIndex];
+        if (proxy.includes('allorigins')) {
+            return `${proxy}${encodeURIComponent(url)}`;
+        }
+        return `${proxy}${url}`;
+    }
+
+    async tryNextProxy() {
+        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.corsProxies.length;
+        this.baseURL = this.getProxiedURL('https://api.warframe.market/v1');
+        console.log(`Trying proxy ${this.currentProxyIndex + 1}/${this.corsProxies.length}: ${this.corsProxies[this.currentProxyIndex]}`);
     }
 
     async fetchWithCache(url) {
@@ -19,44 +42,92 @@ class WarframeMarketAPI {
             return cached.data;
         }
 
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'User-Agent': 'Warframe Market Tracker/1.0.0'
-                },
-                mode: 'cors'
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        let lastError;
+        let attempts = 0;
+        const maxAttempts = this.isElectron ? 1 : this.corsProxies.length;
+
+        while (attempts < maxAttempts) {
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'Warframe Market Tracker/1.0.0'
+                    },
+                    mode: 'cors',
+                    timeout: 10000
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                let data;
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    data = await response.json();
+                } else {
+                    // Handle allorigins response format
+                    const text = await response.text();
+                    if (url.includes('allorigins')) {
+                        const parsed = JSON.parse(text);
+                        if (parsed.contents) {
+                            data = JSON.parse(parsed.contents);
+                        } else {
+                            throw new Error('Invalid allorigins response');
+                        }
+                    } else {
+                        data = JSON.parse(text);
+                    }
+                }
+                
+                this.cache.set(url, { data, timestamp: now });
+                return data;
+            } catch (error) {
+                console.error(`API Error (attempt ${attempts + 1}):`, error);
+                console.error('Failed URL:', url);
+                lastError = error;
+                attempts++;
+                
+                // Try next proxy if not Electron and we have more attempts
+                if (!this.isElectron && attempts < maxAttempts) {
+                    await this.tryNextProxy();
+                    // Rebuild URL with new proxy
+                    let originalURL = url;
+                    for (const proxy of this.corsProxies) {
+                        if (url.includes(proxy)) {
+                            if (proxy.includes('allorigins')) {
+                                originalURL = decodeURIComponent(url.split('url=')[1]);
+                            } else {
+                                originalURL = url.replace(proxy, '');
+                            }
+                            break;
+                        }
+                    }
+                    url = this.getProxiedURL(originalURL);
+                }
             }
-            
-            const data = await response.json();
-            this.cache.set(url, { data, timestamp: now });
-            return data;
-        } catch (error) {
-            console.error('API Error:', error);
-            console.error('Failed URL:', url);
-            
-            // Return cached data if available, even if expired
-            if (cached) {
-                console.log('Using expired cache due to fetch error');
-                return cached.data;
-            }
-            
-            throw error;
         }
+        
+        // Return cached data if available, even if expired
+        if (cached) {
+            console.log('Using expired cache due to all proxy failures');
+            return cached.data;
+        }
+        
+        throw lastError || new Error('All proxy attempts failed');
     }
 
     async getItems() {
-        const url = `${this.baseURL}/items`;
+        const apiURL = 'https://api.warframe.market/v1/items';
+        const url = this.isElectron ? apiURL : this.getProxiedURL(apiURL);
         return await this.fetchWithCache(url);
     }
 
     async getItemOrders(itemUrlName) {
-        const url = `${this.baseURL}/items/${itemUrlName}/orders`;
+        const apiURL = `https://api.warframe.market/v1/items/${itemUrlName}/orders`;
+        const url = this.isElectron ? apiURL : this.getProxiedURL(apiURL);
         return await this.fetchWithCache(url);
     }
 
