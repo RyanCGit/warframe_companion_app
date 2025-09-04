@@ -13,7 +13,7 @@ class WarframeMarketAPI {
         this.cacheTimeout = 300000; // 5 minutes
     }
 
-    async fetchWithCache(url, originalApiUrl = null) {
+    async fetchWithCache(url, originalApiUrl = null, signal = null) {
         const now = Date.now();
         const cached = this.cache.get(url);
         
@@ -32,7 +32,8 @@ class WarframeMarketAPI {
                     headers: {
                         'Accept': 'application/json',
                         'User-Agent': 'Warframe Market Tracker/1.0.0'
-                    }
+                    },
+                    signal: signal
                 });
                 
                 if (!response.ok) {
@@ -73,7 +74,8 @@ class WarframeMarketAPI {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json'
-                    }
+                    },
+                    signal: signal
                 });
                 
                 if (!response.ok) {
@@ -111,9 +113,9 @@ class WarframeMarketAPI {
         throw lastError || new Error('All proxy attempts failed');
     }
 
-    async getItems() {
+    async getItems(signal = null) {
         const apiURL = 'https://api.warframe.market/v1/items';
-        return await this.fetchWithCache(apiURL, apiURL);
+        return await this.fetchWithCache(apiURL, apiURL, signal);
     }
 
     async getItemOrders(itemUrlName) {
@@ -121,9 +123,9 @@ class WarframeMarketAPI {
         return await this.fetchWithCache(apiURL, apiURL);
     }
 
-    async searchItems(query) {
+    async searchItems(query, signal = null) {
         try {
-            const response = await this.getItems();
+            const response = await this.getItems(signal);
             const items = response.payload.items;
             
             const filtered = items.filter(item => 
@@ -335,29 +337,62 @@ class WarframeMarketApp {
     async handleSearchInput(e) {
         const query = e.target.value.trim();
         
+        // Clear any pending search
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+        
+        // Cancel any pending request
+        if (this.currentSearchController) {
+            this.currentSearchController.abort();
+        }
+        
         if (query.length < 2) {
             this.hideSuggestions();
             return;
         }
 
-        try {
-            const items = await this.api.searchItems(query);
-            this.showSuggestions(items);
-        } catch (error) {
-            console.error('Search input error:', error);
-            console.warn('Auto-suggestions temporarily unavailable');
-            this.hideSuggestions();
-            
-            // Show a subtle warning to user if this is the first failure
-            if (!this.searchWarningShown) {
-                this.searchWarningShown = true;
-                setTimeout(() => {
-                    if (this.searchInput.value.trim() === query) {
-                        this.showInfo('Auto-suggestions may be limited. Try typing the full item name.');
+        // Debounce the search to avoid too many API calls
+        this.searchTimeout = setTimeout(async () => {
+            try {
+                // Create new AbortController for this request
+                this.currentSearchController = new AbortController();
+                this.currentSearchQuery = query;
+                
+                const items = await this.api.searchItems(query, this.currentSearchController.signal);
+                
+                // Only show suggestions if this is still the current query
+                if (this.currentSearchQuery === query && !this.currentSearchController.signal.aborted) {
+                    this.showSuggestions(items);
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Search request was cancelled');
+                    return;
+                }
+                console.error('Search input error:', error);
+                console.warn('Auto-suggestions temporarily unavailable');
+                
+                // Only hide suggestions if this is still the current query
+                if (this.currentSearchQuery === query) {
+                    this.hideSuggestions();
+                    
+                    // Show a subtle warning to user if this is the first failure
+                    if (!this.searchWarningShown) {
+                        this.searchWarningShown = true;
+                        setTimeout(() => {
+                            if (this.searchInput.value.trim() === query) {
+                                this.showInfo('Auto-suggestions may be limited. Try typing the full item name.');
+                            }
+                        }, 1000);
                     }
-                }, 1000);
+                }
+            } finally {
+                if (this.currentSearchController && !this.currentSearchController.signal.aborted) {
+                    this.currentSearchController = null;
+                }
             }
-        }
+        }, 300); // 300ms debounce
     }
 
     handleSearchKeydown(e) {
