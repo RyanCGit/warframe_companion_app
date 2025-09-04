@@ -1,0 +1,1651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warframe Market Tracker</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.warframe.market https://api.warframestat.us https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://api.warframe.market https://api.warframestat.us; img-src 'self' data: https:;"
+    <link rel="stylesheet" href="styles.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* Force white text for most elements */
+        * { color: #ffffff !important; }
+        .title-accent { color: #00d4ff !important; }
+        .search-title, .item-name { color: #00d4ff !important; }
+        .recent-title, .stat-title { color: #ffcc00 !important; }
+        .price-value, .order-price { color: #ffcc00 !important; }
+        .stat-value { color: #00d4ff !important; }
+        
+        /* Search box row layout */
+        .search-box-row {
+            display: flex !important;
+            gap: 8px !important;
+            align-items: center !important;
+            margin-bottom: 15px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        /* Make search input text dark with light background for readability */
+        .search-input { 
+            color: #000000 !important; 
+            background-color: #f0f0f0 !important;
+            margin-bottom: 0 !important;
+            flex: 1 !important;
+            height: 48px !important;
+            padding: 0 12px !important;
+            border: 2px solid #d1d5db !important;
+            border-radius: 6px !important;
+            font-size: 14px !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }
+        .search-input::placeholder {
+            color: #666666 !important;
+        }
+        
+        /* Button styling for better readability */
+        button { 
+            color: #ffffff !important; 
+            background: #4f46e5 !important;
+            border: none !important;
+            padding: 10px 16px !important;
+            border-radius: 6px !important;
+            font-weight: 500 !important;
+        }
+        
+        button:hover {
+            background: #4338ca !important;
+        }
+        
+        .search-btn {
+            background: #059669 !important;
+            white-space: nowrap !important;
+            flex-shrink: 0 !important;
+            width: 70px !important;
+            height: 48px !important;
+            padding: 0 8px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 11px !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+        }
+        
+        .search-btn .search-icon {
+            display: none !important;
+        }
+        
+        .search-btn:hover {
+            background: #047857 !important;
+        }
+        
+        .tab-btn {
+            background: transparent !important;
+            color: #9ca3af !important;
+            border-bottom: 2px solid transparent !important;
+            padding: 12px 20px !important;
+        }
+        
+        .tab-btn.active {
+            color: #00d4ff !important;
+            border-bottom-color: #00d4ff !important;
+            background: transparent !important;
+        }
+        
+        .tab-btn:hover:not(.active) {
+            color: #ffffff !important;
+            background: #35394a !important;
+        }
+        
+        /* Modern layout matching UI example */
+        .main-content {
+            display: grid !important;
+            grid-template-columns: 280px 1fr !important;
+            gap: 20px !important;
+            max-width: 1400px !important;
+            margin: 0 auto !important;
+            padding: 20px !important;
+            min-height: calc(100vh - 120px) !important;
+        }
+        
+        .search-panel {
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 20px !important;
+            height: fit-content !important;
+            position: sticky !important;
+            top: 20px !important;
+            overflow: hidden !important;
+        }
+        
+        .results-panel {
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 0 !important;
+            min-height: 600px !important;
+        }
+        
+        .results-header {
+            background: #35394a !important;
+            padding: 20px 25px !important;
+            border-bottom: 1px solid #3d4356 !important;
+            border-radius: 8px 8px 0 0 !important;
+            margin: 0 !important;
+        }
+        
+        .recent-searches {
+            margin-top: 25px !important;
+        }
+        
+        /* Table-style layout for orders */
+        .pricing-grid {
+            display: block !important;
+            padding: 0 !important;
+        }
+        
+        .pricing-card {
+            background: none !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        .orders-list {
+            max-height: none !important;
+            background: none !important;
+        }
+        
+        /* Table-style design matching UI example */
+        .price-summary-bar {
+            display: flex !important;
+            gap: 30px !important;
+            padding: 20px 25px !important;
+            background: #35394a !important;
+            border-bottom: 1px solid #3d4356 !important;
+        }
+        
+        .summary-item {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 5px !important;
+        }
+        
+        .summary-label {
+            font-size: 12px !important;
+            color: #9ca3af !important;
+            text-transform: uppercase !important;
+        }
+        
+        .summary-value {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #00d4ff !important;
+        }
+        
+        .market-table {
+            width: 100% !important;
+        }
+        
+        .table-header {
+            display: grid !important;
+            grid-template-columns: 1fr 80px 100px 80px 80px !important;
+            gap: 15px !important;
+            padding: 15px 25px !important;
+            background: #35394a !important;
+            border-bottom: 2px solid #3d4356 !important;
+            font-weight: 600 !important;
+            font-size: 12px !important;
+            text-transform: uppercase !important;
+            color: #9ca3af !important;
+        }
+        
+        .table-body {
+            max-height: 400px !important;
+            overflow-y: auto !important;
+        }
+        
+        .table-row {
+            display: grid !important;
+            grid-template-columns: 1fr 80px 100px 80px 80px !important;
+            gap: 15px !important;
+            padding: 12px 25px !important;
+            border-bottom: 1px solid #3d4356 !important;
+            align-items: center !important;
+            transition: background 0.2s ease !important;
+        }
+        
+        .table-row:hover {
+            background: #35394a !important;
+        }
+        
+        .table-cell {
+            font-size: 14px !important;
+        }
+        
+        .table-cell.price {
+            font-weight: 600 !important;
+            color: #fbbf24 !important;
+        }
+        
+        .table-cell.status {
+            font-size: 12px !important;
+            text-transform: uppercase !important;
+        }
+        
+        .status-online {
+            color: #10b981 !important;
+        }
+        
+        .status-ingame {
+            color: #3b82f6 !important;
+            font-weight: 600 !important;
+        }
+        
+        .status-offline {
+            color: #6b7280 !important;
+        }
+        
+        .type-buy {
+            color: #10b981 !important;
+            font-weight: 500 !important;
+        }
+        
+        .type-sell {
+            color: #f87171 !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Tab functionality */
+        .tab-panel {
+            display: none !important;
+        }
+        
+        .tab-panel.active {
+            display: block !important;
+        }
+        
+        /* Statistics tab styling */
+        .stats-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
+            padding: 25px !important;
+        }
+        
+        .stat-card {
+            background: #35394a !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 20px !important;
+        }
+        
+        .stat-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #00d4ff !important;
+            margin-bottom: 15px !important;
+        }
+        
+        .stat-item {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 10px 0 !important;
+            border-bottom: 1px solid #3d4356 !important;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none !important;
+        }
+        
+        .stat-label {
+            color: #9ca3af !important;
+            font-size: 14px !important;
+        }
+        
+        .stat-value {
+            color: #fbbf24 !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+        }
+        
+        /* Initial state - hide all result containers */
+        .loading-container,
+        .results-container,
+        .error-container {
+            display: none !important;
+        }
+        
+        .loading-container.show,
+        .results-container.show,
+        .error-container.show {
+            display: block !important;
+        }
+        
+        /* Welcome message for initial state */
+        .welcome-message {
+            display: block !important;
+            text-align: center !important;
+            padding: 80px 25px !important;
+            color: #9ca3af !important;
+        }
+        
+        .welcome-message.hide {
+            display: none !important;
+        }
+        
+        /* Order filter button */
+        .order-filter {
+            margin-left: auto !important;
+        }
+        
+        .filter-btn {
+            background: #4f46e5 !important;
+            color: #ffffff !important;
+            border: none !important;
+            padding: 8px 16px !important;
+            border-radius: 6px !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        .filter-btn:hover {
+            background: #4338ca !important;
+        }
+        
+        .filter-btn.sell-only {
+            background: #dc2626 !important;
+        }
+        
+        .filter-btn.sell-only:hover {
+            background: #b91c1c !important;
+        }
+        
+        .filter-btn.buy-only {
+            background: #059669 !important;
+        }
+        
+        .filter-btn.buy-only:hover {
+            background: #047857 !important;
+        }
+        
+        /* Recent search items animation */
+        .recent-item {
+            transition: all 0.3s ease !important;
+            cursor: pointer !important;
+            border-radius: 6px !important;
+            position: relative !important;
+        }
+        
+        .recent-item:hover {
+            background: #35394a !important;
+            color: #00d4ff !important;
+            transform: translateX(8px) scale(1.02) !important;
+            box-shadow: 0 4px 12px rgba(0, 212, 255, 0.2) !important;
+            border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        }
+        
+        .recent-item:active {
+            transform: translateX(6px) scale(1.01) !important;
+            transition: all 0.1s ease !important;
+        }
+        
+        /* Suggested items animation and styling */
+        .suggestions-container {
+            animation: slideDown 0.3s ease-out !important;
+            transform-origin: top !important;
+        }
+        
+        @keyframes slideDown {
+            0% {
+                opacity: 0;
+                transform: translateY(-10px) scaleY(0.8);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scaleY(1);
+            }
+        }
+        
+        .suggestion-item {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            cursor: pointer !important;
+            border-radius: 6px !important;
+            margin: 2px 4px !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }
+        
+        .suggestion-item::before {
+            content: '' !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: -100% !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent) !important;
+            transition: left 0.5s ease !important;
+        }
+        
+        .suggestion-item:hover {
+            background: linear-gradient(135deg, #35394a, #3d4356) !important;
+            color: #00d4ff !important;
+            transform: translateX(4px) scale(1.02) !important;
+            box-shadow: 
+                0 4px 12px rgba(0, 212, 255, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+            border: 1px solid rgba(0, 212, 255, 0.3) !important;
+        }
+        
+        .suggestion-item:hover::before {
+            left: 100% !important;
+        }
+        
+        .suggestion-item:active {
+            transform: translateX(2px) scale(1.01) !important;
+            transition: all 0.1s ease !important;
+        }
+        
+        /* Staggered animation for suggestion items */
+        .suggestion-item:nth-child(1) { animation-delay: 0.05s; }
+        .suggestion-item:nth-child(2) { animation-delay: 0.1s; }
+        .suggestion-item:nth-child(3) { animation-delay: 0.15s; }
+        .suggestion-item:nth-child(4) { animation-delay: 0.2s; }
+        .suggestion-item:nth-child(5) { animation-delay: 0.25s; }
+        
+        .suggestion-item {
+            animation: suggestionFadeIn 0.3s ease-out both !important;
+        }
+        
+        @keyframes suggestionFadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Modern font overrides */
+        body, * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
+        }
+        
+        /* Headers and titles use Inter with proper weights */
+        .app-title, .search-title, .item-name, .card-title, .stat-title, .recent-title, .error-title {
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.025em !important;
+        }
+        
+        /* Monospace elements use JetBrains Mono for better readability */
+        .price-value, .order-price, .stat-value, .summary-value, .loading-text {
+            font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Table headers */
+        .table-header {
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.025em !important;
+        }
+        
+        /* Buttons */
+        button {
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.01em !important;
+        }
+        
+        /* Input fields */
+        input, .search-input {
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 400 !important;
+        }
+        
+        /* Enhanced header with background and logo */
+        .app-header {
+            position: relative !important;
+            margin-bottom: 40px !important;
+            padding: 30px 0 !important;
+            overflow: hidden !important;
+        }
+        
+        .header-background {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0a0a0f 100%) !important;
+            opacity: 0.8 !important;
+            z-index: 1 !important;
+        }
+        
+        .header-background::before {
+            content: '' !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(255, 204, 0, 0.1) 0%, transparent 50%) !important;
+            animation: headerGlow 6s ease-in-out infinite alternate !important;
+        }
+        
+        @keyframes headerGlow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.7; }
+        }
+        
+        .header-content {
+            position: relative !important;
+            z-index: 2 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 20px !important;
+        }
+        
+        .logo-container {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        
+        .app-logo {
+            filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5)) !important;
+            animation: logoFloat 4s ease-in-out infinite !important;
+        }
+        
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-3px); }
+        }
+        
+        .app-title {
+            position: relative !important;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important;
+        }
+        
+        .title-accent, .title-main {
+            transition: all 0.3s ease !important;
+        }
+        
+        /* Main App Tabs Styling */
+        .main-tabs-container {
+            max-width: 1400px !important;
+            margin: 0 auto 20px auto !important;
+            padding: 0 20px !important;
+        }
+        
+        .main-tabs {
+            display: flex !important;
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 4px !important;
+            gap: 4px !important;
+        }
+        
+        .main-tab-btn {
+            flex: 1 !important;
+            background: transparent !important;
+            color: #9ca3af !important;
+            border: none !important;
+            padding: 16px 24px !important;
+            border-radius: 6px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 600 !important;
+            font-size: 16px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        .main-tab-btn:hover:not(.active) {
+            background: #35394a !important;
+            color: #ffffff !important;
+        }
+        
+        .main-tab-btn.active {
+            background: linear-gradient(135deg, #00d4ff, #0099cc) !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3) !important;
+        }
+        
+        /* Main Tab Panel Styling */
+        .main-tab-panel {
+            display: none !important;
+        }
+        
+        .main-tab-panel.active {
+            display: block !important;
+        }
+        
+        /* Alerts Tab Specific Styling */
+        .alerts-content {
+            display: block !important;
+            max-width: 1400px !important;
+            margin: 0 auto !important;
+            padding: 20px !important;
+        }
+        
+        .alerts-header {
+            text-align: center !important;
+            margin-bottom: 30px !important;
+            padding: 20px !important;
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+        }
+        
+        .alerts-title {
+            font-size: 32px !important;
+            font-weight: 700 !important;
+            color: #00d4ff !important;
+            margin-bottom: 8px !important;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important;
+        }
+        
+        .alerts-subtitle {
+            color: #9ca3af !important;
+            font-size: 16px !important;
+            margin: 0 !important;
+        }
+        
+        .alerts-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            grid-template-rows: auto auto !important;
+            gap: 20px !important;
+        }
+        
+        .cycles-panel {
+            grid-column: 1 / 3 !important;
+        }
+        
+        .cycles-panel, .alerts-panel, .activities-panel {
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 20px !important;
+        }
+        
+        .panel-title {
+            font-size: 20px !important;
+            font-weight: 600 !important;
+            color: #00d4ff !important;
+            margin-bottom: 15px !important;
+            border-bottom: 2px solid #3d4356 !important;
+            padding-bottom: 10px !important;
+        }
+        
+        /* Alerts Tab Component Styling */
+        .cycles-container {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+            gap: 15px !important;
+        }
+        
+        .cycle-card {
+            background: #35394a !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 15px !important;
+            text-align: center !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .cycle-card.day {
+            border-left: 4px solid #fbbf24 !important;
+            background: linear-gradient(135deg, #35394a, #3d4356) !important;
+        }
+        
+        .cycle-card.night {
+            border-left: 4px solid #6366f1 !important;
+            background: linear-gradient(135deg, #2a2d3e, #35394a) !important;
+        }
+        
+        .cycle-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .cycle-icon {
+            font-size: 18px !important;
+        }
+        
+        .cycle-name {
+            font-weight: 600 !important;
+            color: #ffffff !important;
+            font-size: 14px !important;
+        }
+        
+        .cycle-state {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            color: #00d4ff !important;
+            margin-bottom: 5px !important;
+        }
+        
+        .cycle-timer {
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 14px !important;
+            color: #fbbf24 !important;
+            font-weight: 500 !important;
+            transition: color 0.3s ease !important;
+            text-shadow: 0 0 4px rgba(251, 191, 36, 0.3) !important;
+        }
+        
+        .cycle-timer:hover {
+            color: #ffcc00 !important;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5) !important;
+        }
+        
+        /* Animation for timers that are about to expire */
+        @keyframes timerWarning {
+            0%, 100% { color: #ef4444; }
+            50% { color: #fbbf24; }
+        }
+        
+        .cycle-timer.warning {
+            animation: timerWarning 1s ease-in-out infinite !important;
+        }
+        
+        /* Alert Cards */
+        .alert-card {
+            background: #35394a !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 16px !important;
+            margin-bottom: 12px !important;
+            border-left: 4px solid #10b981 !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .alert-card.expiring-soon {
+            border-left-color: #f59e0b !important;
+            box-shadow: 0 0 12px rgba(245, 158, 11, 0.2) !important;
+        }
+        
+        .alert-card.expired {
+            border-left-color: #ef4444 !important;
+            opacity: 0.7 !important;
+            background: #2d3142 !important;
+        }
+        
+        .alert-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            margin-bottom: 12px !important;
+        }
+        
+        .alert-mission-info {
+            flex: 1 !important;
+        }
+        
+        .alert-type {
+            font-weight: 700 !important;
+            color: #00d4ff !important;
+            font-size: 16px !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .alert-location {
+            color: #ffffff !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            margin-bottom: 6px !important;
+        }
+        
+        .alert-details {
+            display: flex !important;
+            gap: 12px !important;
+            flex-wrap: wrap !important;
+        }
+        
+        .alert-faction {
+            color: #9ca3af !important;
+            font-size: 12px !important;
+            background: #4b5563 !important;
+            padding: 2px 8px !important;
+            border-radius: 12px !important;
+            text-transform: uppercase !important;
+            font-weight: 500 !important;
+        }
+        
+        .alert-level {
+            color: #fbbf24 !important;
+            font-size: 12px !important;
+            background: #451a03 !important;
+            padding: 2px 8px !important;
+            border-radius: 12px !important;
+            font-weight: 500 !important;
+        }
+        
+        .alert-description {
+            color: #d1d5db !important;
+            font-size: 13px !important;
+            font-style: italic !important;
+            margin: 6px 0 8px 0 !important;
+            line-height: 1.4 !important;
+            background: rgba(55, 65, 81, 0.3) !important;
+            padding: 6px 8px !important;
+            border-radius: 4px !important;
+            border-left: 3px solid #6b7280 !important;
+        }
+        
+        .mission-modifier {
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            padding: 2px 6px !important;
+            border-radius: 10px !important;
+            margin-left: 8px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        .mission-modifier.nightmare {
+            background: linear-gradient(135deg, #dc2626, #991b1b) !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 8px rgba(220, 38, 38, 0.3) !important;
+        }
+        
+        .mission-modifier.archwing {
+            background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 8px rgba(124, 58, 237, 0.3) !important;
+        }
+        
+        .alert-enemy-spec {
+            color: #ef4444 !important;
+            font-size: 12px !important;
+            background: rgba(239, 68, 68, 0.1) !important;
+            padding: 2px 8px !important;
+            border-radius: 12px !important;
+            font-weight: 500 !important;
+            border: 1px solid rgba(239, 68, 68, 0.3) !important;
+        }
+        
+        .reward-item.mission-reward {
+            background: linear-gradient(135deg, #059669, #047857) !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        }
+        
+        .alert-timer-section {
+            text-align: right !important;
+        }
+        
+        .alert-timer {
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 14px !important;
+            color: #10b981 !important;
+            font-weight: 600 !important;
+            background: rgba(16, 185, 129, 0.1) !important;
+            padding: 6px 10px !important;
+            border-radius: 6px !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            transition: all 0.3s ease !important;
+            text-shadow: 0 0 4px rgba(16, 185, 129, 0.3) !important;
+        }
+        
+        .alert-timer.warning {
+            color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.1) !important;
+            border-color: rgba(239, 68, 68, 0.3) !important;
+            animation: timerWarning 1s ease-in-out infinite !important;
+        }
+        
+        .alert-rewards {
+            margin-top: 12px !important;
+        }
+        
+        .rewards-header {
+            font-size: 12px !important;
+            color: #9ca3af !important;
+            text-transform: uppercase !important;
+            font-weight: 600 !important;
+            margin-bottom: 6px !important;
+        }
+        
+        .rewards-content {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 6px !important;
+        }
+        
+        .reward-credits {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+            color: #000000 !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-shadow: none !important;
+        }
+        
+        .reward-item {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #4f46e5, #3730a3) !important;
+            color: #ffffff !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        /* Activity Cards */
+        .activity-card {
+            background: #35394a !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            margin-bottom: 10px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .activity-card.clickable:hover {
+            background: #3d4356 !important;
+            border-color: #00d4ff !important;
+            box-shadow: 0 2px 8px rgba(0, 212, 255, 0.2) !important;
+        }
+        
+        .activity-card.expanded {
+            border-color: #00d4ff !important;
+        }
+        
+        .activity-card-header {
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+        }
+        
+        .activity-icon {
+            font-size: 20px !important;
+            flex-shrink: 0 !important;
+        }
+        
+        .activity-info {
+            flex: 1 !important;
+        }
+        
+        .activity-type {
+            font-weight: 600 !important;
+            color: #ffffff !important;
+            font-size: 14px !important;
+            margin-bottom: 2px !important;
+        }
+        
+        .activity-count {
+            color: #9ca3af !important;
+            font-size: 12px !important;
+        }
+        
+        .expand-indicator {
+            color: #9ca3af !important;
+            font-size: 12px !important;
+            transition: transform 0.3s ease !important;
+        }
+        
+        /* Activity Details */
+        .activity-details {
+            margin-top: 15px !important;
+            padding-top: 15px !important;
+            border-top: 1px solid #3d4356 !important;
+        }
+        
+        .activity-detail-header {
+            font-weight: 600 !important;
+            color: #00d4ff !important;
+            font-size: 14px !important;
+            margin-bottom: 10px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        /* Fissure Details */
+        .fissures-list, .invasions-list {
+            max-height: 300px !important;
+            overflow-y: auto !important;
+        }
+        
+        .fissure-item, .invasion-item {
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 6px !important;
+            padding: 10px !important;
+            margin-bottom: 8px !important;
+        }
+        
+        .fissure-header {
+            display: flex !important;
+            justify-content: flex-start !important;
+            align-items: center !important;
+            gap: 8px !important;
+            margin-bottom: 6px !important;
+        }
+        
+        .invasion-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 6px !important;
+            width: 100% !important;
+        }
+        
+        .fissure-tier {
+            background: #4f46e5 !important;
+            color: #ffffff !important;
+            padding: 2px 8px !important;
+            border-radius: 12px !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+        }
+        
+        .fissure-tier.lith { background: #10b981 !important; }
+        .fissure-tier.meso { background: #f59e0b !important; }
+        .fissure-tier.neo { background: #3b82f6 !important; }
+        .fissure-tier.axi { background: #ef4444 !important; }
+        .fissure-tier.requiem { background: #8b5cf6 !important; }
+        
+        .steel-path-indicator {
+            background: #dc2626 !important;
+            color: #ffffff !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            font-size: 9px !important;
+            font-weight: 600 !important;
+            margin-left: 4px !important;
+            vertical-align: middle !important;
+            display: inline-flex !important;
+            align-items: center !important;
+        }
+
+        .void-storm-indicator {
+            background: #7c3aed !important;
+            color: #ffffff !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            font-size: 9px !important;
+            font-weight: 600 !important;
+            margin-left: 4px !important;
+            vertical-align: middle !important;
+            display: inline-flex !important;
+            align-items: center !important;
+        }
+        
+        .fissure-type {
+            font-weight: 600 !important;
+            color: #ffffff !important;
+            font-size: 12px !important;
+            margin-left: auto !important;
+        }
+        
+        .invasion-location {
+            font-weight: 600 !important;
+            color: #ffffff !important;
+            font-size: 12px !important;
+            text-align: left !important;
+            margin-left: 0 !important;
+            flex: 1 !important;
+        }
+        
+        .fissure-location {
+            color: #9ca3af !important;
+            font-size: 11px !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .fissure-details {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+        }
+        
+        .fissure-enemy {
+            color: #f87171 !important;
+            font-size: 10px !important;
+            background: rgba(248, 113, 113, 0.1) !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+        }
+        
+        .fissure-timer {
+            color: #fbbf24 !important;
+            font-size: 10px !important;
+            font-family: 'JetBrains Mono', monospace !important;
+        }
+        
+        /* Invasion Details */
+        .invasion-progress {
+            color: #00d4ff !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+        }
+        
+        .invasion-progress-container {
+            text-align: right !important;
+            flex-shrink: 0 !important;
+            margin-left: auto !important;
+        }
+        
+        .invasion-progress-split {
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+        }
+        
+        .progress-attacker {
+            color: #ef4444 !important;
+        }
+        
+        .progress-defender {
+            color: #10b981 !important;
+        }
+        
+        .progress-attacker.infested,
+        .progress-defender.infested {
+            color: #8b5cf6 !important;
+            opacity: 0.7 !important;
+            font-style: italic !important;
+        }
+        
+        .progress-separator {
+            color: #9ca3af !important;
+        }
+        
+        .invasion-progress.single {
+            color: #00d4ff !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+        }
+        
+        .invasion-factions {
+            display: grid !important;
+            grid-template-columns: 1fr auto 1fr !important;
+            gap: 10px !important;
+            align-items: center !important;
+            margin: 8px 0 !important;
+        }
+        
+        .faction-side {
+            text-align: center !important;
+        }
+        
+        .faction-side.attacker {
+            text-align: left !important;
+        }
+        
+        .faction-side.defender {
+            text-align: right !important;
+        }
+        
+        .faction-name {
+            font-size: 11px !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+            display: block !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .faction-reward-container {
+            position: relative !important;
+            background: rgba(55, 65, 81, 0.3) !important;
+            border-radius: 4px !important;
+            overflow: hidden !important;
+        }
+        
+        .faction-reward-progress {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            height: 100% !important;
+            background: rgba(251, 191, 36, 0.3) !important;
+            transition: width 0.5s ease !important;
+            border-radius: 4px !important;
+        }
+        
+        .faction-side.attacker .faction-reward-progress {
+            background: rgba(239, 68, 68, 0.4) !important;
+        }
+        
+        .faction-side.defender .faction-reward-progress {
+            background: rgba(16, 185, 129, 0.4) !important;
+        }
+        
+        .faction-side.infested .faction-reward-progress {
+            background: rgba(139, 92, 246, 0.3) !important;
+        }
+        
+        .faction-reward {
+            position: relative !important;
+            z-index: 1 !important;
+            font-size: 10px !important;
+            color: #fbbf24 !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            min-height: 16px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        
+        .faction-side.infested .faction-reward {
+            color: #9ca3af !important;
+            font-style: italic !important;
+        }
+        
+        .faction-side.infested .faction-name {
+            color: #8b5cf6 !important;
+            opacity: 0.8 !important;
+        }
+        
+        .faction-mission-type {
+            font-size: 9px !important;
+            color: #9ca3af !important;
+            margin-bottom: 4px !important;
+            text-transform: uppercase !important;
+            font-weight: 500 !important;
+        }
+        
+        .faction-side.infested .faction-mission-type {
+            color: #6b7280 !important;
+            opacity: 0.7 !important;
+        }
+        
+        .vs-indicator {
+            color: #ef4444 !important;
+            font-size: 10px !important;
+            font-weight: 700 !important;
+        }
+        
+        .invasion-type {
+            color: #9ca3af !important;
+            font-size: 10px !important;
+            text-align: center !important;
+            margin-top: 4px !important;
+        }
+        
+        /* Sortie Details */
+        .sortie-details {
+            background: #2a2d3e !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 6px !important;
+            padding: 12px !important;
+        }
+        
+        .sortie-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .sortie-boss {
+            font-weight: 700 !important;
+            color: #ef4444 !important;
+            font-size: 14px !important;
+        }
+        
+        .sortie-faction {
+            color: #9ca3af !important;
+            font-size: 12px !important;
+        }
+        
+        .sortie-reward {
+            color: #fbbf24 !important;
+            font-size: 12px !important;
+            margin-bottom: 12px !important;
+            padding: 8px !important;
+            background: rgba(251, 191, 36, 0.1) !important;
+            border-radius: 4px !important;
+        }
+        
+        .sortie-mission {
+            background: #35394a !important;
+            border: 1px solid #3d4356 !important;
+            border-radius: 4px !important;
+            padding: 8px !important;
+            margin-bottom: 6px !important;
+        }
+        
+        .mission-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .mission-number {
+            background: #00d4ff !important;
+            color: #000000 !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            font-size: 10px !important;
+            font-weight: 700 !important;
+        }
+        
+        .mission-type {
+            color: #ffffff !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+        }
+        
+        .mission-location {
+            color: #9ca3af !important;
+            font-size: 10px !important;
+            margin-bottom: 4px !important;
+        }
+        
+        .mission-modifier {
+            color: #f59e0b !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            margin-bottom: 2px !important;
+        }
+        
+        .mission-description {
+            color: #d1d5db !important;
+            font-size: 10px !important;
+            font-style: italic !important;
+            line-height: 1.3 !important;
+        }
+        
+        .no-details {
+            text-align: center !important;
+            color: #9ca3af !important;
+            font-style: italic !important;
+            padding: 20px !important;
+        }
+        
+        /* No Data / Error States */
+        .no-data, .error-message {
+            text-align: center !important;
+            padding: 40px 20px !important;
+            color: #9ca3af !important;
+            font-style: italic !important;
+        }
+        
+        .error-message {
+            color: #ef4444 !important;
+        }
+        
+        /* Loading State */
+        .alerts-loading {
+            display: none !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            padding: 40px !important;
+            color: #9ca3af !important;
+        }
+        
+        .alerts-loading.show {
+            display: flex !important;
+        }
+        
+        .alerts-loading .loading-spinner {
+            margin-bottom: 15px !important;
+            width: 40px !important;
+            height: 40px !important;
+            border: 4px solid #3d4356 !important;
+            border-top: 4px solid #00d4ff !important;
+            border-radius: 50% !important;
+            animation: spin 1s linear infinite !important;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-background"></div>
+            <div class="header-content">
+                <div class="logo-container">
+                    <svg class="app-logo" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#0099cc;stop-opacity:1" />
+                            </linearGradient>
+                            <filter id="logoGlow">
+                                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                                <feMerge> 
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                        </defs>
+                        <g transform="translate(24, 24)" filter="url(#logoGlow)">
+                            <polygon points="0,-16 12,-8 0,16 -12,-8" fill="url(#logoGradient)" opacity="0.9"/>
+                            <polygon points="-20,-4 -16,-12 -8,-4 -16,4" fill="#ffcc00" opacity="0.8"/>
+                            <polygon points="20,-4 16,-12 8,-4 16,4" fill="#ffcc00" opacity="0.8"/>
+                            <polygon points="-8,8 0,16 8,8 0,20" fill="url(#logoGradient)" opacity="0.7"/>
+                            <circle cx="0" cy="-4" r="3" fill="#ffcc00" opacity="0.9"/>
+                            <text x="0" y="0" text-anchor="middle" font-family="monospace" font-size="6" fill="#0a0a0f" font-weight="bold">♦</text>
+                        </g>
+                    </svg>
+                </div>
+                <h1 class="app-title">
+                    <span class="title-accent">WARFRAME</span>
+                    <span class="title-main">MARKET TRACKER</span>
+                </h1>
+            </div>
+        </header>
+
+        <!-- Main App Tabs -->
+        <div class="main-tabs-container">
+            <div class="main-tabs">
+                <button class="main-tab-btn active" data-main-tab="market">Market</button>
+                <button class="main-tab-btn" data-main-tab="alerts">Alerts</button>
+            </div>
+        </div>
+
+        <!-- Market Tab Content -->
+        <div id="marketTab" class="main-tab-panel active">
+            <main class="main-content">
+                <div class="search-panel">
+                    <div class="search-container">
+                        <h2 class="search-title">Item Search</h2>
+                    <div class="search-input-container">
+                        <div class="search-box-row">
+                            <input 
+                                type="text" 
+                                id="itemSearch" 
+                                class="search-input" 
+                                placeholder="Enter item name (e.g., prime_parts, mods)..."
+                                autocomplete="off"
+                            >
+                            <button id="searchBtn" class="search-btn">
+                                <span class="search-icon">🔍</span>
+                                SEARCH
+                            </button>
+                        </div>
+                    </div>
+                    <div id="suggestions" class="suggestions-container"></div>
+                </div>
+
+                <div class="recent-searches">
+                    <h3 class="recent-title">Recent Searches</h3>
+                    <ul id="recentList" class="recent-list"></ul>
+                </div>
+            </div>
+
+            <div class="results-panel">
+                <div class="loading-container" id="loadingContainer">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">Scanning Warframe Market...</p>
+                </div>
+
+                <div class="welcome-message" id="welcomeMessage">
+                    <h2 style="color: #00d4ff; margin-bottom: 15px; font-family: 'Orbitron', monospace;">Welcome to Warframe Market Tracker</h2>
+                    <p style="margin-bottom: 10px;">Search for any Warframe item to view live market data</p>
+                    <p style="font-size: 14px; color: #6b7280;">Enter an item name in the search box above to get started</p>
+                </div>
+                
+                <div class="results-container" id="resultsContainer">
+                    <div class="results-header">
+                        <h2 id="itemName" class="item-name">Select an item to view data</h2>
+                    </div>
+
+                    <div class="tabs-container">
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="pricing">Pricing</button>
+                            <button class="tab-btn" data-tab="statistics">Statistics</button>
+                        </div>
+
+                        <div class="tab-content">
+                            <div id="pricingTab" class="tab-panel active">
+                                <div class="market-table-container">
+                                    <div class="price-summary-bar">
+                                        <div class="summary-item">
+                                            <span class="summary-label">Lowest Sell:</span>
+                                            <span id="lowestSell" class="summary-value">-- ♦</span>
+                                        </div>
+                                        <div class="summary-item">
+                                            <span class="summary-label">Highest Buy:</span>
+                                            <span id="highestBuy" class="summary-value">-- ♦</span>
+                                        </div>
+                                        <div class="summary-item">
+                                            <span class="summary-label">Total Orders:</span>
+                                            <span id="totalOrdersQuick" class="summary-value">--</span>
+                                        </div>
+                                        <div class="order-filter">
+                                            <button id="orderFilterBtn" class="filter-btn active" data-filter="all">
+                                                All Orders
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="market-table">
+                                        <div class="table-header">
+                                            <div class="header-cell player-col">Player</div>
+                                            <div class="header-cell type-col">Type</div>
+                                            <div class="header-cell price-col">Price</div>
+                                            <div class="header-cell quantity-col">Quantity</div>
+                                            <div class="header-cell status-col">Status</div>
+                                        </div>
+                                        <div id="ordersTableBody" class="table-body"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="statisticsTab" class="tab-panel">
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <h3 class="stat-title">Market Overview</h3>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Total Orders:</span>
+                                            <span id="totalOrders" class="stat-value">--</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Price Range:</span>
+                                            <span id="priceRange" class="stat-value">-- - -- ♦</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Average Price:</span>
+                                            <span id="averagePrice" class="stat-value">-- ♦</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="stat-card">
+                                        <h3 class="stat-title">Market Activity</h3>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Online Sellers:</span>
+                                            <span id="onlineSellers" class="stat-value">--</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Online Buyers:</span>
+                                            <span id="onlineBuyers" class="stat-value">--</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Last Updated:</span>
+                                            <span id="lastUpdated" class="stat-value">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="error-container" id="errorContainer">
+                    <div class="error-icon">⚠️</div>
+                    <h3 class="error-title">Connection Error</h3>
+                    <p id="errorMessage" class="error-message">Unable to connect to Warframe Market</p>
+                    <button id="retryBtn" class="retry-btn">RETRY</button>
+                </div>
+            </div>
+        </main>
+        </div>
+
+        <!-- Alerts Tab Content -->
+        <div id="alertsTab" class="main-tab-panel">
+            <main class="main-content alerts-content">
+                
+                <div class="alerts-grid">
+                    <!-- Day/Night Cycles Panel -->
+                    <div class="cycles-panel">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 class="panel-title" style="margin-bottom: 0;">Open World Cycles</h3>
+                            <button id="refreshAlertsBtn" style="padding: 8px 16px; background: #00d4ff; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 12px; font-weight: 600;">Refresh Data</button>
+                        </div>
+                        <div class="cycles-container" id="cyclesContainer">
+                            <!-- Cycle data will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Current Alerts Panel -->
+                    <div class="alerts-panel">
+                        <h3 class="panel-title">Active Alerts</h3>
+                        <div class="alerts-container" id="alertsContainer">
+                            <!-- Alert data will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Other Activities Panel -->
+                    <div class="activities-panel">
+                        <h3 class="panel-title">Other Activities</h3>
+                        <div class="activities-container" id="activitiesContainer">
+                            <!-- Activities data will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alerts-loading" id="alertsLoading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading Warframe world state...</p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
