@@ -10,7 +10,8 @@ class WarframeMarketAPI {
             'https://api.codetabs.com/v1/proxy?quest='
         ];
         this.cache = new Map();
-        this.cacheTimeout = 300000; // 5 minutes
+        this.cacheTimeout = 300000; // 5 minutes for orders
+        this.itemsCacheTimeout = 3600000; // 1 hour for items list (changes infrequently)
     }
 
     async fetchWithCache(url, originalApiUrl = null, signal = null) {
@@ -123,6 +124,26 @@ class WarframeMarketAPI {
 
     async getItems(signal = null) {
         const apiURL = 'https://api.warframe.market/v1/items';
+        const now = Date.now();
+        const cached = this.cache.get(apiURL);
+        
+        // Use longer cache timeout for items list and return immediately if available
+        if (cached && (now - cached.timestamp) < this.itemsCacheTimeout) {
+            console.log('Using cached items list (fast path)');
+            return cached.data;
+        }
+        
+        // If we have expired cache, use it immediately and refresh in background
+        if (cached && (now - cached.timestamp) < (this.itemsCacheTimeout * 2)) {
+            console.log('Using slightly expired items cache for speed, refreshing in background');
+            // Refresh in background without waiting
+            setTimeout(() => {
+                this.fetchWithCache(apiURL, apiURL, null).catch(console.error);
+            }, 100);
+            return cached.data;
+        }
+        
+        // No cache or very old cache, fetch fresh
         return await this.fetchWithCache(apiURL, apiURL, signal);
     }
 
@@ -422,10 +443,10 @@ class WarframeMarketApp {
             console.log('Starting search for:', query);
             this.showLoading();
             
-            // Add timeout to prevent hanging
+            // Add timeout to prevent hanging (reduced since caching makes it faster)
             const searchPromise = this.api.searchItems(query);
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Search timeout - please try again')), 15000)
+                setTimeout(() => reject(new Error('Search timeout - please try again')), 8000)
             );
             
             const items = await Promise.race([searchPromise, timeoutPromise]);
@@ -519,6 +540,27 @@ class WarframeMarketApp {
     handleMainTabClick(e) {
         const tabName = e.target.dataset.mainTab;
         this.switchMainTab(tabName);
+        
+        // Preload items list when market tab is accessed for faster searches
+        if (tabName === 'market' && !this.itemsPreloaded) {
+            this.preloadItemsList();
+        }
+    }
+
+    async preloadItemsList() {
+        if (this.itemsPreloading) return;
+        this.itemsPreloading = true;
+        
+        try {
+            console.log('Preloading items list for faster searches...');
+            await this.api.getItems();
+            this.itemsPreloaded = true;
+            console.log('Items list preloaded successfully');
+        } catch (error) {
+            console.error('Failed to preload items list:', error);
+        } finally {
+            this.itemsPreloading = false;
+        }
     }
 
     switchMainTab(tabName) {
