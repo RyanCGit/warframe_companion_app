@@ -9,53 +9,71 @@ class WarframeMarketAPI {
             'https://corsproxy.io/?',
             'https://api.codetabs.com/v1/proxy?quest='
         ];
-        this.currentProxyIndex = 0;
-        this.baseURL = this.isElectron 
-            ? 'https://api.warframe.market/v1'
-            : this.getProxiedURL('https://api.warframe.market/v1');
         this.cache = new Map();
         this.cacheTimeout = 300000; // 5 minutes
     }
 
-    getProxiedURL(url) {
-        if (this.isElectron) {
-            return url;
-        }
-        const proxy = this.corsProxies[this.currentProxyIndex];
-        if (proxy.includes('allorigins')) {
-            return `${proxy}${encodeURIComponent(url)}`;
-        }
-        return `${proxy}${url}`;
-    }
-
-    async tryNextProxy() {
-        this.currentProxyIndex = (this.currentProxyIndex + 1) % this.corsProxies.length;
-        this.baseURL = this.getProxiedURL('https://api.warframe.market/v1');
-        console.log(`Trying proxy ${this.currentProxyIndex + 1}/${this.corsProxies.length}: ${this.corsProxies[this.currentProxyIndex]}`);
-    }
-
-    async fetchWithCache(url) {
+    async fetchWithCache(url, originalApiUrl = null) {
         const now = Date.now();
         const cached = this.cache.get(url);
         
         if (cached && (now - cached.timestamp) < this.cacheTimeout) {
+            console.log('Using cached data for:', originalApiUrl || url);
             return cached.data;
         }
 
-        let lastError;
-        let attempts = 0;
-        const maxAttempts = this.isElectron ? 1 : this.corsProxies.length;
+        console.log('Fetching from:', url);
 
-        while (attempts < maxAttempts) {
+        if (this.isElectron) {
+            // Direct fetch for Electron
             try {
                 const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
                         'User-Agent': 'Warframe Market Tracker/1.0.0'
-                    },
-                    mode: 'cors',
-                    timeout: 10000
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                this.cache.set(url, { data, timestamp: now });
+                return data;
+            } catch (error) {
+                console.error('Electron API Error:', error);
+                if (cached) {
+                    console.log('Using expired cache due to error');
+                    return cached.data;
+                }
+                throw error;
+            }
+        }
+
+        // Web browser - try proxies
+        let lastError;
+        const baseApiUrl = originalApiUrl || url;
+
+        for (let i = 0; i < this.corsProxies.length; i++) {
+            const proxy = this.corsProxies[i];
+            let proxyUrl;
+
+            if (proxy.includes('allorigins')) {
+                proxyUrl = `${proxy}${encodeURIComponent(baseApiUrl)}`;
+            } else {
+                proxyUrl = `${proxy}${baseApiUrl}`;
+            }
+
+            console.log(`Trying proxy ${i + 1}/${this.corsProxies.length}:`, proxy);
+
+            try {
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
                 });
                 
                 if (!response.ok) {
@@ -63,72 +81,44 @@ class WarframeMarketAPI {
                 }
                 
                 let data;
-                const contentType = response.headers.get('content-type');
-                
-                if (contentType && contentType.includes('application/json')) {
-                    data = await response.json();
-                } else {
-                    // Handle allorigins response format
-                    const text = await response.text();
-                    if (url.includes('allorigins')) {
-                        const parsed = JSON.parse(text);
-                        if (parsed.contents) {
-                            data = JSON.parse(parsed.contents);
-                        } else {
-                            throw new Error('Invalid allorigins response');
-                        }
+                if (proxy.includes('allorigins')) {
+                    const result = await response.json();
+                    if (result.contents) {
+                        data = JSON.parse(result.contents);
                     } else {
-                        data = JSON.parse(text);
+                        throw new Error('Invalid allorigins response');
                     }
+                } else {
+                    data = await response.json();
                 }
                 
+                console.log('Successfully fetched data using proxy:', proxy);
                 this.cache.set(url, { data, timestamp: now });
                 return data;
             } catch (error) {
-                console.error(`API Error (attempt ${attempts + 1}):`, error);
-                console.error('Failed URL:', url);
+                console.error(`Proxy ${proxy} failed:`, error);
                 lastError = error;
-                attempts++;
-                
-                // Try next proxy if not Electron and we have more attempts
-                if (!this.isElectron && attempts < maxAttempts) {
-                    await this.tryNextProxy();
-                    // Rebuild URL with new proxy
-                    let originalURL = url;
-                    for (const proxy of this.corsProxies) {
-                        if (url.includes(proxy)) {
-                            if (proxy.includes('allorigins')) {
-                                originalURL = decodeURIComponent(url.split('url=')[1]);
-                            } else {
-                                originalURL = url.replace(proxy, '');
-                            }
-                            break;
-                        }
-                    }
-                    url = this.getProxiedURL(originalURL);
-                }
             }
         }
         
-        // Return cached data if available, even if expired
+        // All proxies failed, try cached data
         if (cached) {
-            console.log('Using expired cache due to all proxy failures');
+            console.log('All proxies failed, using expired cache');
             return cached.data;
         }
         
+        console.error('All proxies failed and no cache available');
         throw lastError || new Error('All proxy attempts failed');
     }
 
     async getItems() {
         const apiURL = 'https://api.warframe.market/v1/items';
-        const url = this.isElectron ? apiURL : this.getProxiedURL(apiURL);
-        return await this.fetchWithCache(url);
+        return await this.fetchWithCache(apiURL, apiURL);
     }
 
     async getItemOrders(itemUrlName) {
         const apiURL = `https://api.warframe.market/v1/items/${itemUrlName}/orders`;
-        const url = this.isElectron ? apiURL : this.getProxiedURL(apiURL);
-        return await this.fetchWithCache(url);
+        return await this.fetchWithCache(apiURL, apiURL);
     }
 
     async searchItems(query) {
