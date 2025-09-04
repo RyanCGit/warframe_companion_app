@@ -2,7 +2,11 @@
 
 class WarframeMarketAPI {
     constructor() {
-        this.baseURL = 'https://api.warframe.market/v1';
+        // Use CORS proxy for web browsers, direct API for Electron
+        this.isElectron = window.electronAPI !== undefined;
+        this.baseURL = this.isElectron 
+            ? 'https://api.warframe.market/v1'
+            : 'https://corsproxy.io/?https://api.warframe.market/v1';
         this.cache = new Map();
         this.cacheTimeout = 300000; // 5 minutes
     }
@@ -35,6 +39,13 @@ class WarframeMarketAPI {
         } catch (error) {
             console.error('API Error:', error);
             console.error('Failed URL:', url);
+            
+            // Return cached data if available, even if expired
+            if (cached) {
+                console.log('Using expired cache due to fetch error');
+                return cached.data;
+            }
+            
             throw error;
         }
     }
@@ -273,7 +284,18 @@ class WarframeMarketApp {
             this.showSuggestions(items);
         } catch (error) {
             console.error('Search input error:', error);
+            console.warn('Auto-suggestions temporarily unavailable');
             this.hideSuggestions();
+            
+            // Show a subtle warning to user if this is the first failure
+            if (!this.searchWarningShown) {
+                this.searchWarningShown = true;
+                setTimeout(() => {
+                    if (this.searchInput.value.trim() === query) {
+                        this.showInfo('Auto-suggestions may be limited. Try typing the full item name.');
+                    }
+                }, 1000);
+            }
         }
     }
 
@@ -652,6 +674,50 @@ class WarframeMarketApp {
         
         const errorMessageEl = document.getElementById('errorMessage');
         errorMessageEl.textContent = message;
+    }
+
+    showInfo(message, duration = 3000) {
+        // Create or update info notification
+        let infoEl = document.getElementById('infoNotification');
+        if (!infoEl) {
+            infoEl = document.createElement('div');
+            infoEl.id = 'infoNotification';
+            infoEl.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: rgba(0, 212, 255, 0.1);
+                border: 1px solid #00d4ff;
+                color: #00d4ff;
+                padding: 12px 16px;
+                border-radius: 6px;
+                font-size: 14px;
+                z-index: 10000;
+                max-width: 300px;
+                opacity: 0;
+                transform: translateX(20px);
+                transition: all 0.3s ease;
+            `;
+            document.body.appendChild(infoEl);
+        }
+        
+        infoEl.textContent = message;
+        infoEl.style.opacity = '1';
+        infoEl.style.transform = 'translateX(0)';
+        
+        // Auto hide after duration
+        clearTimeout(this.infoTimeout);
+        this.infoTimeout = setTimeout(() => {
+            if (infoEl) {
+                infoEl.style.opacity = '0';
+                infoEl.style.transform = 'translateX(20px)';
+                setTimeout(() => {
+                    if (infoEl && infoEl.parentNode) {
+                        infoEl.parentNode.removeChild(infoEl);
+                    }
+                }, 300);
+            }
+        }, duration);
     }
 
     hideResults() {
