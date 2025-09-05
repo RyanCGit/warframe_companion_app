@@ -20,6 +20,7 @@ class WarframeMarketAPI {
     async fetchWithCache(url, originalApiUrl = null, signal = null) {
         const now = Date.now();
         const cached = this.cache.get(url);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
         if (cached && (now - cached.timestamp) < this.cacheTimeout) {
             console.log('Using cached data for:', originalApiUrl || url);
@@ -27,6 +28,8 @@ class WarframeMarketAPI {
         }
 
         console.log('Fetching from:', url);
+        console.log('Mobile device detected:', isMobile);
+        console.log('User agent:', navigator.userAgent);
 
         if (this.isElectron) {
             // Direct fetch for Electron
@@ -65,30 +68,52 @@ class WarframeMarketAPI {
         let lastError;
         const baseApiUrl = originalApiUrl || url;
 
-        for (let i = 0; i < this.corsProxies.length; i++) {
-            const proxy = this.corsProxies[i];
+        // Reorder proxies for mobile - some work better on mobile than others
+        const proxiesToTry = isMobile ? [
+            'https://api.allorigins.win/get?url=',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://corsproxy.io/?'
+        ] : this.corsProxies;
+
+        for (let i = 0; i < proxiesToTry.length; i++) {
+            const proxy = proxiesToTry[i];
             let proxyUrl;
 
             if (proxy.includes('allorigins')) {
                 proxyUrl = `${proxy}${encodeURIComponent(baseApiUrl)}`;
+            } else if (proxy.includes('cors-anywhere')) {
+                proxyUrl = `${proxy}${baseApiUrl}`;
             } else {
                 proxyUrl = `${proxy}${baseApiUrl}`;
             }
 
-            console.log(`Trying proxy ${i + 1}/${this.corsProxies.length}:`, proxy);
+            console.log(`[Mobile: ${isMobile}] Trying proxy ${i + 1}/${proxiesToTry.length}:`, proxy);
+            console.log('Full proxy URL:', proxyUrl);
 
             try {
                 const fetchOptions = {
                     method: 'GET',
                     headers: {
-                        'Accept': 'application/json'
+                        'Accept': 'application/json',
+                        'User-Agent': isMobile ? 'Mozilla/5.0 (Mobile)' : 'Warframe Market Tracker/1.0.0'
                     }
                 };
+                
+                // Add longer timeout for mobile
+                if (isMobile) {
+                    fetchOptions.timeout = 20000; // 20 seconds
+                }
+                
                 if (signal) {
                     fetchOptions.signal = signal;
                 }
                 
+                console.log('Fetch options:', fetchOptions);
+                const startTime = Date.now();
                 const response = await fetch(proxyUrl, fetchOptions);
+                const duration = Date.now() - startTime;
+                
+                console.log(`Response received in ${duration}ms, status:`, response.status);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -97,21 +122,31 @@ class WarframeMarketAPI {
                 let data;
                 if (proxy.includes('allorigins')) {
                     const result = await response.json();
+                    console.log('AllOrigins response structure:', Object.keys(result));
                     if (result.contents) {
                         data = JSON.parse(result.contents);
+                    } else if (result.data) {
+                        data = result.data;
                     } else {
-                        throw new Error('Invalid allorigins response');
+                        throw new Error('Invalid allorigins response structure');
                     }
                 } else {
                     data = await response.json();
                 }
                 
-                console.log('Successfully fetched data using proxy:', proxy);
+                console.log('Successfully fetched data using proxy:', proxy, 'Data keys:', Object.keys(data));
                 this.cache.set(url, { data, timestamp: now });
                 return data;
             } catch (error) {
-                console.error(`Proxy ${proxy} failed:`, error);
+                console.error(`Proxy ${proxy} failed:`, error.message);
+                console.error('Error details:', error);
                 lastError = error;
+                
+                // On mobile, try to wait a bit between proxy attempts
+                if (isMobile && i < proxiesToTry.length - 1) {
+                    console.log('Waiting 1 second before trying next proxy...');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
         }
         
@@ -121,7 +156,32 @@ class WarframeMarketAPI {
             return cached.data;
         }
         
+        // Mobile-specific fallback: try direct API call (might work on some mobile networks)
+        if (isMobile) {
+            console.log('Attempting direct API call as mobile fallback...');
+            try {
+                const response = await fetch(baseApiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    mode: 'cors'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Direct API call succeeded on mobile!');
+                    this.cache.set(url, { data, timestamp: now });
+                    return data;
+                }
+            } catch (directError) {
+                console.log('Direct API call also failed:', directError.message);
+            }
+        }
+        
         console.error('All proxies failed and no cache available');
+        console.error('Last error was:', lastError);
         throw lastError || new Error('All proxy attempts failed');
     }
 
@@ -488,14 +548,27 @@ class WarframeMarketApp {
             console.error('Search error:', error);
             console.error('Error details:', error.message);
             
-            // Provide mobile-specific error messages
+            // Provide mobile-specific error messages and debugging info
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             let errorMessage = `Connection failed: ${error.message}`;
             
-            if (isMobile && error.message.includes('timeout')) {
-                errorMessage = 'Search timed out. Mobile networks can be slower - please try again or check your connection.';
-            } else if (isMobile && error.message.includes('proxy')) {
-                errorMessage = 'Connection issue on mobile. Please try again or switch to a different network.';
+            console.log('Search failed with error:', error);
+            console.log('Mobile device:', isMobile);
+            console.log('Network connection:', navigator.onLine ? 'Online' : 'Offline');
+            
+            if (isMobile) {
+                if (error.message.includes('timeout')) {
+                    errorMessage = 'Search timed out. Mobile networks can be slower - please try again or check your connection.';
+                } else if (error.message.includes('proxy') || error.message.includes('failed')) {
+                    errorMessage = 'Connection issue on mobile. Try switching to WiFi or mobile data, then search again.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Network error on mobile. Please check your internet connection and try again.';
+                } else {
+                    errorMessage = `Mobile search error: ${error.message}. Check console for details.`;
+                }
+                
+                // Add a suggestion to try desktop version
+                errorMessage += ' If issues persist, try using the desktop version.';
             }
             
             this.showError(errorMessage);
