@@ -4,10 +4,13 @@ class WarframeMarketAPI {
     constructor() {
         // Use CORS proxy for web browsers, direct API for Electron
         this.isElectron = window.electronAPI !== undefined;
+        // Reorder proxies for better mobile compatibility
         this.corsProxies = [
             'https://api.allorigins.win/get?url=',
             'https://corsproxy.io/?',
-            'https://api.codetabs.com/v1/proxy?quest='
+            'https://api.codetabs.com/v1/proxy?quest=',
+            // Backup proxy for mobile
+            'https://cors-anywhere.herokuapp.com/'
         ];
         this.cache = new Map();
         this.cacheTimeout = 300000; // 5 minutes for orders
@@ -127,14 +130,18 @@ class WarframeMarketAPI {
         const now = Date.now();
         const cached = this.cache.get(apiURL);
         
+        // Detect mobile for extended cache usage
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const cacheMultiplier = isMobile ? 3 : 1; // Use cache 3x longer on mobile
+        
         // Use longer cache timeout for items list and return immediately if available
-        if (cached && (now - cached.timestamp) < this.itemsCacheTimeout) {
+        if (cached && (now - cached.timestamp) < (this.itemsCacheTimeout * cacheMultiplier)) {
             console.log('Using cached items list (fast path)');
             return cached.data;
         }
         
         // If we have expired cache, use it immediately and refresh in background
-        if (cached && (now - cached.timestamp) < (this.itemsCacheTimeout * 2)) {
+        if (cached && (now - cached.timestamp) < (this.itemsCacheTimeout * cacheMultiplier * 2)) {
             console.log('Using slightly expired items cache for speed, refreshing in background');
             // Refresh in background without waiting
             setTimeout(() => {
@@ -381,7 +388,10 @@ class WarframeMarketApp {
             return;
         }
 
-        // Debounce the search to avoid too many API calls
+        // Debounce the search to avoid too many API calls - longer delay for mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const debounceDelay = isMobile ? 500 : 300; // 500ms for mobile, 300ms for desktop
+        
         this.searchTimeout = setTimeout(async () => {
             try {
                 // Create new AbortController for this request
@@ -411,7 +421,10 @@ class WarframeMarketApp {
                         this.searchWarningShown = true;
                         setTimeout(() => {
                             if (this.searchInput.value.trim() === query) {
-                                this.showInfo('Auto-suggestions may be limited. Try typing the full item name.');
+                                const warningText = isMobile 
+                                    ? 'Auto-suggestions may be limited on mobile. Try typing the full item name.'
+                                    : 'Auto-suggestions may be limited. Try typing the full item name.';
+                                this.showInfo(warningText);
                             }
                         }, 1000);
                     }
@@ -421,7 +434,7 @@ class WarframeMarketApp {
                     this.currentSearchController = null;
                 }
             }
-        }, 300); // 300ms debounce
+        }, debounceDelay);
     }
 
     handleSearchKeydown(e) {
@@ -443,10 +456,13 @@ class WarframeMarketApp {
             console.log('Starting search for:', query);
             this.showLoading();
             
-            // Add timeout to prevent hanging (reduced since caching makes it faster)
+            // Add timeout to prevent hanging - longer for mobile devices
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const timeoutDuration = isMobile ? 15000 : 8000; // 15s for mobile, 8s for desktop
+            
             const searchPromise = this.api.searchItems(query);
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Search timeout - please try again')), 8000)
+                setTimeout(() => reject(new Error('Search timeout - please try again')), timeoutDuration)
             );
             
             const items = await Promise.race([searchPromise, timeoutPromise]);
@@ -471,7 +487,18 @@ class WarframeMarketApp {
         } catch (error) {
             console.error('Search error:', error);
             console.error('Error details:', error.message);
-            this.showError(`Connection failed: ${error.message}. Check console for details.`);
+            
+            // Provide mobile-specific error messages
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            let errorMessage = `Connection failed: ${error.message}`;
+            
+            if (isMobile && error.message.includes('timeout')) {
+                errorMessage = 'Search timed out. Mobile networks can be slower - please try again or check your connection.';
+            } else if (isMobile && error.message.includes('proxy')) {
+                errorMessage = 'Connection issue on mobile. Please try again or switch to a different network.';
+            }
+            
+            this.showError(errorMessage);
         }
     }
 
