@@ -733,11 +733,11 @@ class WarframeMarketApp {
 
         tableBody.innerHTML = allOrdersSorted.map(order => `
             <div class="table-row">
-                <div class="table-cell">${order.user.ingame_name}</div>
-                <div class="table-cell type-${order.order_type}">${order.order_type.toUpperCase()}</div>
-                <div class="table-cell price">${order.platinum} ♦</div>
-                <div class="table-cell">${order.quantity}</div>
-                <div class="table-cell status status-${order.user.status}">${order.user.status}</div>
+                <div class="table-cell" data-label="Player">${order.user.ingame_name}</div>
+                <div class="table-cell type-${order.order_type}" data-label="Type">${order.order_type.toUpperCase()}</div>
+                <div class="table-cell price" data-label="Price">${order.platinum} ♦</div>
+                <div class="table-cell" data-label="Quantity">${order.quantity}</div>
+                <div class="table-cell status status-${order.user.status}" data-label="Status">${order.user.status}</div>
             </div>
         `).join('');
     }
